@@ -8,8 +8,8 @@ output: word_document
 # rm(list = ls())
 # setwd("/Users/yihanwang/Documents/Florey/projects/NACC-CAA/code")
 ```
-```{r}
 
+```{r}
 library(dplyr)
 library(ggplot2)
 library(readxl)
@@ -96,9 +96,6 @@ ggplot(nacc_df_clean, aes(x = NACCAGE, y = CDRSUM, group = NACCID)) +
        x = "Age (NACCAGE)",
        y = "CDR-SOB") +
   theme_minimal()
-
-```
-```{r}
 
 ```
 
@@ -198,115 +195,64 @@ NACC_filter_cross <- NACC_filter_sorted %>%
 ```
 
 
-
-
-##############################
+# self defined columns
+NPTDPSUM
 ```{r}
-library(dplyr)
-
-# Define the function to calculate NPTDPSUM for one row.
-calculate_NPTDPSUM <- function(row) {
-  cols <- c("NPTDPA", "NPTDPB", "NPTDPC", "NPTDPD", "NPTDPE")
-  
-  # Check if all specified columns are NA; if yes, return NA.
-  if (all(is.na(row[cols]))) {
-    return(NA_real_)
-  }
-  
-  # Replace NA with 0 and check if the sum is 0; if yes, return 0.
-  if (sum(ifelse(is.na(row[cols]), 0, row[cols])) == 0) {
-    return(0)
-  }
-  
-  # Create a mapping from column names to numeric values.
-  mapping <- c(NPTDPA = 1, NPTDPB = 2, NPTDPC = 3, NPTDPD = 4, NPTDPE = 5)
-  max_value <- 0
-  
-  # Loop through each column in the mapping.
-  for (col in names(mapping)) {
-    # If the column is not NA and equals 1, update max_value.
-    if (!is.na(row[[col]]) && row[[col]] == 1) {
-      max_value <- max(max_value, mapping[[col]])
+mapping <- c('NPTDPA' = 1, 'NPTDPB' = 2, 'NPTDPC' = 3, 'NPTDPD' = 4, 'NPTDPE' = 5)
+NACC_filter_cross <- NACC_filter_cross %>%
+  rowwise() %>%
+  mutate(NPTDPSUM = {
+    values <- c_across(all_of(cols))
+    if (all(is.na(values))) {
+      NA_real_
+    } else if (sum(values, na.rm = TRUE) == 0) {
+      0
+    } else {
+      positions <- mapping[cols][which(values == 1)]
+      if (length(positions) == 0) NA_real_ else max(positions)
     }
-  }
-  
-  # Return max_value if greater than 0, else NA.
-  if (max_value > 0) {
-    return(max_value)
+  }) %>%
+  ungroup() %>%
+  select(-all_of(cols))
+```
+
+
+```{r}
+NPOFTD_cols <- c('NPOFTD', 'NPOFTD1', 'NPOFTD2', 'NPOFTD3', 'NPOFTD4', 'NPOFTD5')
+FTD_sum_cols <- c('NPOFTDSUM', 'NPFTDTAU', 'NPFTDTDP')
+
+calculate_NPOFTDSUM <- function(row) {
+  if (any(row == 1, na.rm = TRUE)) {
+    return(1)
+  } else if (all(row == 0, na.rm = TRUE)) {
+    return(0)
   } else {
-    return(NA_real_)
+    return(NA)
   }
 }
 
-# Apply the function row by row.
+# Apply the calculation to NACC_filter_cross
 NACC_filter_cross <- NACC_filter_cross %>%
   rowwise() %>%
   mutate(
-    # Convert selected columns to a named list before passing to the function.
-    NPTDPSUM = calculate_NPTDPSUM(as.list(c_across(all_of(c("NPTDPA", "NPTDPB", "NPTDPC", "NPTDPD", "NPTDPE")))))
+    NPOFTDSUM = calculate_NPOFTDSUM(c_across(all_of(NPOFTD_cols))),
+    NPFTDSUM = calculate_NPOFTDSUM(c_across(all_of(FTD_sum_cols)))
   ) %>%
-  ungroup() %>%
-  # Remove the original columns
-  select(-NPTDPA, -NPTDPB, -NPTDPC, -NPTDPD, -NPTDPE)
-
+  ungroup()
 ```
 
 
 ```{r}
-NPOFTD_cols <- c("NPOFTD", "NPOFTD1", "NPOFTD2", "NPOFTD3", "NPOFTD4", "NPOFTD5")
+process_participant <- function(group) {
+  # Use the last record's NACCAMY as CAA_death
+  group$CAA_death <- group$NACCAMY[nrow(group)]
+  return(group)
+}
 
-# Create a new column 'NPOFTDSUM' based on the following rules:
-# - If any value in the row (among NPOFTD_cols) is 1, then NPOFTDSUM is 1.
-# - If every value is 0 (with no missing values), then NPOFTDSUM is 0.
-# - Otherwise, NPOFTDSUM is set to NA.
-NACC_filter_cross <- NACC_filter_cross %>%
-  rowwise() %>%
-  mutate(NPOFTDSUM = {
-    # Get the current row values for the specified columns
-    values <- c_across(all_of(NPOFTD_cols))
-    if (any(values == 1, na.rm = TRUE)) {
-      1
-    } else if (all(!is.na(values)) && all(values == 0)) {
-      0
-    } else {
-      NA_real_
-    }
-  }) %>%
-  ungroup()
-
-# Define the column names for the second sum
-FTD_sum_cols <- c("NPOFTDSUM", "NPFTDTAU", "NPFTDTDP")
-
-# Create a new column 'NPFTDSUM' based on the following rules:
-# - If any value in the row (among FTD_sum_cols) is 1, then NPFTDSUM is 1.
-# - If every value is 0 (with no missing values), then NPFTDSUM is 0.
-# - Otherwise, NPFTDSUM is set to NA.
-NACC_filter_cross <- NACC_filter_cross %>%
-  rowwise() %>%
-  mutate(NPFTDSUM = {
-    # Get the current row values for the specified columns
-    values <- c_across(all_of(FTD_sum_cols))
-    if (any(values == 1, na.rm = TRUE)) {
-      1
-    } else if (all(!is.na(values)) && all(values == 0)) {
-      0
-    } else {
-      NA_real_
-    }
-  }) %>%
-  ungroup()
-
-
-```
-
-
-```{r}
-library(dplyr)
-
+# Apply processing and clean up
 NACC_with_CAA_cross <- NACC_filter_cross %>%
   group_by(NACCID) %>%
-  mutate(CAA_death = last(NACCAMY)) %>%
-  slice(1) %>%
+  group_modify(~ process_participant(.x)) %>%
   ungroup() %>%
   filter(!is.na(CAA_death))
 
@@ -320,37 +266,32 @@ missing_perc
 
 
 ```
+```{r}
+print(length(unique(NACC_with_CAA_cross$NACCID)))
+
+```
+
 
 ```{r}
-library(dplyr)
-
 # 1. Drop rows with missing values in the specified columns
-NACC_with_CAA_cross <- NACC_with_CAA_cross %>%
+NACC_with_CAA_cross_final <- NACC_with_CAA_cross %>%
   filter(!is.na(NPADNC),
          !is.na(NACCLEWY),
          !is.na(CAA_death),
          !is.na(NPTDPSUM),
          !is.na(NPTHAL),
          !is.na(NACCBRAA),
-         !is.na(NACCNEUR)) %>%
-  filter(!is.na(NACCAGE),
+         !is.na(NACCNEUR),
+         !is.na(NACCAGE),
          !is.na(NACCDAGE),
          !is.na(NACCAGEB))
 
-# 2. Print the number of unique participants based on NACCID
 cat("There are", n_distinct(NACC_with_CAA_cross$NACCID), "unique participants died with CAA value.\n")
-
-# 3. Remove rows where the proportion of missing values is 20% or higher
 NACC_with_CAA_cross <- NACC_with_CAA_cross %>%
   filter(rowMeans(is.na(.)) < 0.2)
 
-# 4. Identify columns with less than 20% missing values
 final_cols <- names(which(colMeans(is.na(NACC_with_CAA_cross)) < 0.2))
-
-# 5. Keep only these columns in the data frame
 NACC_with_CAA_cross <- NACC_with_CAA_cross[, final_cols]
-
-# 6. Print the updated number of unique participants and the dimensions of the data frame
 cat("There are", n_distinct(NACC_with_CAA_cross$NACCID), "unique participants died with CAA value.\n")
 cat("Data frame dimensions:", dim(NACC_with_CAA_cross), "\n")
 
@@ -359,18 +300,6 @@ cat("Data frame dimensions:", dim(NACC_with_CAA_cross), "\n")
 
 
 
-
-```{r}
-last_records <- nacc_df %>%
-  group_by(NACCID) %>%
-  slice_tail(n = 1) %>%
-  ungroup()
-
-# Create a cross-tabulation between CAA_death and NACCUDSD
-crosstab <- table(last_records$CAA_death, last_records$NACCUDSD)
-print(crosstab)
-
-```
 
 ```{r}
 

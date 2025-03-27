@@ -202,7 +202,7 @@ mapping <- c('NPTDPA' = 1, 'NPTDPB' = 2, 'NPTDPC' = 3, 'NPTDPD' = 4, 'NPTDPE' = 
 NACC_filter_cross <- NACC_filter_cross %>%
   rowwise() %>%
   mutate(NPTDPSUM = {
-    values <- c_across(all_of(cols))
+    values <- (all_c_acrossof(cols))
     if (all(is.na(values))) {
       NA_real_
     } else if (sum(values, na.rm = TRUE) == 0) {

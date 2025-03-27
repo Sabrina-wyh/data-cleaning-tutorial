@@ -1,0 +1,105 @@
+---
+title: "solve missing"
+author: "Yihan Wang"
+date: "2024-08-20"
+output: html_document
+---
+```{r}
+library(missRanger)
+```
+
+
+```{r}
+# caa_missing <- read.csv("NACC_died_CAA_LW_missing.csv", na.strings = c("", "NA"), check.names = FALSE)[, -1]
+caa_missing <- read.csv("NACC_died_CAA_LW_missing.csv", check.names = FALSE)[, -1]
+```
+
+```{r}
+library(readxl)
+pathology_set_df <- read_excel("../raw_data/NACC_CAA_path_variable.xlsx", sheet = "pathology")
+pathology_set <- pathology_set_df$Feature
+
+```
+
+```{r}
+
+# caa_binary_missing$Age <- factor(caa_binary_missing$Age, levels = c("<70", "70-74", "75-79","80-84","85-89",">=90"), ordered = TRUE)
+# caa_binary_missing$Sex <- factor(caa_binary_missing$Sex)
+# caa_binary_missing$Smoking1 <- factor(caa_binary_missing$Smoking1)
+# caa_binary_missing$Diabetes <- factor(caa_binary_missing$Diabetes)
+# caa_binary_missing$Heart_conditions <- factor(caa_binary_missing$Heart_conditions)
+# caa_binary_missing$Stroke <- factor(caa_binary_missing$Stroke)
+# caa_binary_missing$APOE <- factor(caa_binary_missing$APOE)
+# caa_binary_missing$Vision1 <- factor(caa_binary_missing$Vision1)
+# caa_binary_missing$MMSE1 <- factor(caa_binary_missing$MMSE1, levels = c("no", 'questionable' ,"mild", "moderate or severe dementia"), ordered = TRUE)
+# caa_binary_missing$caa_4gp1<-factor(caa_binary_missing$caa_4gp1)
+```
+
+```{r}
+colnames_with_na <- names(which(colSums(is.na(caa_missing)) > 0))
+cols_to_impute <- setdiff(colnames_with_na, pathology_set)
+print(cols_to_impute)
+
+```
+
+```{r}
+# cols_to_impute <- c("RACE", "EDUC", "MARISTAT", "NACCAPOE",'CVAFIB', "CVCHF", "CBSTROKE", "CBTIA", "PD", "SEIZURES", "NACCTBI", "DIABETES", "THYROID", "HYPERTEN", "HYPERCHO", "INCONTU", "INCONTF") 
+exclude_cols <- c("NACCID", "NACCAGEB", "NACCAGE", "NACCDAGE")
+data_to_impute <- caa_missing[, setdiff(cols_to_impute, exclude_cols), drop = FALSE]
+unchanged_data <- caa_missing[, !(names(caa_missing) %in% cols_to_impute), drop = FALSE]
+imputed_part <- missRanger(data_to_impute, num.trees = 100, verbose = 1, pmm.k = 5)
+final_data <- cbind(unchanged_data, imputed_part)
+final_data <- final_data[, names(caa_missing)]
+
+
+```
+
+```{r}
+final_data[is.na(final_data)] <- 9999
+```
+
+```{r}
+colnames_with_na <- names(which(colSums(is.na(final_data)) > 0))
+print(colnames_with_na)
+```
+
+```{r}
+write.csv(final_data, "caa_imputed_Mar3.csv")
+```
+
+### another imputation
+```{r}
+caa_missing2 <- read.csv("NACC_died_CAA_LW_missing1.csv", check.names = FALSE)[, -1]
+pathology_set_df <- read_excel("../raw_data/NACC_CAA_path_variable.xlsx", sheet = "pathology")
+pathology_set <- pathology_set_df$Feature
+```
+
+```{r}
+
+colnames(caa_missing2)
+```
+
+```{r}
+colnames_with_na2 <- names(which(colSums(is.na(caa_missing2)) > 0))
+cols_to_impute2 <- setdiff(colnames_with_na2, pathology_set)
+print(cols_to_impute2)
+```
+```{r}
+exclude_cols2 <- c("NACCID", "NACCAGEB", "NACCDAGE")
+data_to_impute2 <- caa_missing2[, setdiff(cols_to_impute2, exclude_cols2), drop = FALSE]
+unchanged_data2 <- caa_missing2[, !(names(caa_missing2) %in% cols_to_impute2), drop = FALSE]
+imputed_part2 <- missRanger(data_to_impute2, num.trees = 100, verbose = 1, pmm.k = 5)
+final_data2 <- cbind(unchanged_data2, imputed_part2)
+final_data2 <- final_data2[, names(caa_missing2)]
+final_data2[is.na(final_data2)] <- 9999
+```
+
+
+```{r}
+colnames_with_na2 <- names(which(colSums(is.na(final_data2)) > 0))
+print(colnames_with_na2)
+```
+
+```{r}
+write.csv(final_data2, "caa2_imputed_Mar3.csv")
+```
